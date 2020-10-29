@@ -396,14 +396,14 @@ export default class Client extends EventEmitter {
   getDeviceFromSysInfo(
     sysInfo: Sysinfo,
     deviceOptions: AnyDeviceOptionsCon
-  ): AnyDevice {
+  ): Promise<AnyDevice> {
     if (isPlugSysinfo(sysInfo)) {
-      return this.getPlug({ ...deviceOptions, sysInfo });
+      return Promise.resolve(this.getPlug({ ...deviceOptions, sysInfo }));
     }
     if (isBulbSysinfo(sysInfo)) {
-      return this.getBulb({ ...deviceOptions, sysInfo });
+      return Promise.resolve(this.getBulb({ ...deviceOptions, sysInfo }));
     }
-    throw new Error('Could not determine device from sysinfo');
+    return Promise.reject()
   }
 
   /**
@@ -694,17 +694,21 @@ export default class Client extends EventEmitter {
         device.seenOnDiscovery = this.discoveryPacketSequence;
         this.emit('online', device);
       } else {
-        device = this.getDeviceFromSysInfo(sysInfo, {
-          ...options,
-          client: this,
-          host,
-          port,
-          childId,
-        });
-        device.status = 'online';
-        device.seenOnDiscovery = this.discoveryPacketSequence;
-        this.devices.set(id, device);
-        this.emit('new', device);
+          this.getDeviceFromSysInfo(sysInfo, {
+            ...options,
+            client: this,
+            host,
+            port,
+            childId,
+          }).then(d => {
+            device = d;
+            device.status = 'online';
+            device.seenOnDiscovery = this.discoveryPacketSequence;
+            this.devices.set(id, device);
+            this.emit('new', device);
+          }).catch(() => {
+            this.log.error("Unknown TP-Link device found:",  host, port)
+          });
       }
     };
 
